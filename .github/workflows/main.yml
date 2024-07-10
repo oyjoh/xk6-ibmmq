@@ -5,8 +5,6 @@ on:
     branches:
     - main
 
-
-
 jobs:
   build-test:
     strategy:
@@ -15,6 +13,8 @@ jobs:
         mq-client-version: [9.3.5.1]
     runs-on: ${{ matrix.environment }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Cache MQ Client
         uses: actions/cache@v2
         with:
@@ -29,4 +29,10 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v5.0.1
             
-      - run: dspmqver
+      - name: Check MQ version
+        working-directory: ./
+        run: dspmqver
+
+      - name: Build and test
+        working-directory: ./
+        run: ./local-test.sh
