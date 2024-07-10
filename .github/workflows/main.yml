@@ -1,0 +1,32 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+    - main
+
+
+
+jobs:
+  build-test:
+    strategy:
+      matrix:
+        environment: ['ubuntu-latest']
+        mq-client-version: [9.3.5.1]
+    runs-on: ${{ matrix.environment }}
+    steps:
+      - name: Cache MQ Client
+        uses: actions/cache@v2
+        with:
+          path: ${{ github.workspace }}/setup-mqclient
+          key: mqclient-${{ runner.os }}-${{ matrix.mq-client-version }}
+
+      - name: Install MQ Client
+        uses: SeyfSV/setup-mqclient@v0.3.1
+        with:
+          mq-client-version: ${{ matrix.mq-client-version }}
+      
+      - name: Setup Go environment
+        uses: actions/setup-go@v5.0.1
+            
+      - run: dspmqver
