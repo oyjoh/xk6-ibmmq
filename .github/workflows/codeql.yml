@@ -1,0 +1,62 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '30 6 * * 2'
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: go
+          build-mode: manual
+        - language: javascript-typescript
+          build-mode: none
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install MQ Client
+      uses: SeyfSV/setup-mqclient@v0.3.1
+      with:
+        mq-client-version: '9.3.5.1'
+
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+
+
+    - if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        export MQ_INSTALLATION_PATH=$HOME/IBM/MQ/data
+        export CGO_CFLAGS="-I$MQ_INSTALLATION_PATH/inc"
+        export CGO_LDFLAGS="-L$MQ_INSTALLATION_PATH/lib64 -Wl,-rpath,$MQ_INSTALLATION_PATH/lib64"
+        export CGO_ENABLED=1
+        go install go.k6.io/xk6/cmd/xk6@latest
+        xk6 build \
+            --with github.com/iambaim/xk6-ibmmq=.
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
