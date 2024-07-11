@@ -32,14 +32,6 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install MQ Client
-      uses: SeyfSV/setup-mqclient@v0.3.1
-      with:
-        mq-client-version: '9.3.5.1'
-
-    - name: Setup Go environment
-      uses: actions/setup-go@v5.0.1
-
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
@@ -47,16 +39,24 @@ jobs:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
 
-    - if: matrix.build-mode == 'manual'
+    - if: matrix.language == 'go'
+      name: Install MQ Client
+      uses: SeyfSV/setup-mqclient@v0.3.1
+      with:
+        mq-client-version: '9.3.5.1'
+
+    - if: matrix.language == 'go'
+      name: Setup Go environment
+      uses: actions/setup-go@v5.0.1
+
+    - if: matrix.language == 'go'
       shell: bash
       run: |
         export MQ_INSTALLATION_PATH=$HOME/IBM/MQ/data
         export CGO_CFLAGS="-I$MQ_INSTALLATION_PATH/inc"
         export CGO_LDFLAGS="-L$MQ_INSTALLATION_PATH/lib64 -Wl,-rpath,$MQ_INSTALLATION_PATH/lib64"
         export CGO_ENABLED=1
-        go install go.k6.io/xk6/cmd/xk6@latest
-        xk6 build \
-            --with github.com/iambaim/xk6-ibmmq=.
+        go build
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
