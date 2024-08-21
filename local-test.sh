@@ -17,7 +17,7 @@ xk6 build \
     --with github.com/iambaim/xk6-ibmmq=.
 
 # Run dev MQ container and wait until MQ is ready
-docker-compose -f example/docker-compose.yml up -d localmqtest
+docker compose -f example/docker-compose.yml up -d localmqtest
 while curl --output /dev/null --silent --head --fail localhost:1414 ; [ $? -ne 52 ];do
   printf '.'
   sleep 5
@@ -33,4 +33,4 @@ export MQ_PASSWORD="password"
 
 ./k6 run --vus 2 --duration 5s example/localtest.js
 
-docker-compose -f example/docker-compose.yml down
+docker compose -f example/docker-compose.yml down
