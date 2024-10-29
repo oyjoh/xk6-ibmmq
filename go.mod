@@ -1,14 +1,16 @@
-module github.com/iambaim/xk6-ibmmq
+module github.com/oyjoh/xk6-ibmmq
 
 go 1.22.1
 
 require (
+	github.com/antchfx/xmlquery v1.4.2
 	github.com/ibm-messaging/mq-golang/v5 v5.6.0
 	github.com/walles/env v0.0.4
 	go.k6.io/k6 v0.54.0
 )
 
 require (
+	github.com/antchfx/xpath v1.3.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/evanw/esbuild v0.21.2 // indirect
@@ -16,6 +18,7 @@ require (
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
+	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/pprof v0.0.0-20240827171923-fa2c70bbbfe5 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grafana/sobek v0.0.0-20240829081756-447e8c611945 // indirect

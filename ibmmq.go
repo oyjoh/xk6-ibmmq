@@ -2,11 +2,14 @@ package xk6ibmmq
 
 import (
 	"encoding/hex"
-	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
-	"github.com/walles/env"
-	"go.k6.io/k6/js/modules"
 	"log"
 	"strconv"
+	"strings"
+
+	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
+	xml "github.com/oyjoh/xk6-ibmmq/internal"
+	"github.com/walles/env"
+	"go.k6.io/k6/js/modules"
 )
 
 func init() {
@@ -16,6 +19,11 @@ func init() {
 type Ibmmq struct {
 	QMName string
 	cno    *ibmmq.MQCNO
+}
+
+type QueueStatus struct {
+	FailedMessages int
+	ValidMessages  int
 }
 
 /*
@@ -249,6 +257,112 @@ func (s *Ibmmq) Receive(replyQueue string, msgId string, replyMsg string) int {
 		}
 	}
 	return rc
+}
+
+func (s *Ibmmq) ReceiveAllAndValidate(qName string, filterXPath string, filterValue string, xPath string, value string) QueueStatus {
+	failedMessages := 0
+	validMessages := 0
+	qMgr := s.Connect()
+	defer qMgr.Disc()
+
+	mqod := ibmmq.NewMQOD()
+	openOptions := ibmmq.MQOO_INPUT_EXCLUSIVE
+
+	mqod.ObjectType = ibmmq.MQOT_Q
+	mqod.ObjectName = qName
+
+	qObject, err := qMgr.Open(mqod, openOptions)
+	if err != nil {
+		log.Fatal("Error in opening queue: " + err.Error())
+	} else {
+		defer qObject.Close(0)
+	}
+
+	//messages := make([]string, 0)
+	msgAvail := true
+	for msgAvail && err == nil {
+		getmqmd := ibmmq.NewMQMD()
+		gmo := ibmmq.NewMQGMO()
+
+		gmo.Options = ibmmq.MQGMO_NO_SYNCPOINT
+
+		// Set options to wait for a maximum of 3 seconds for any new message to arrive
+		gmo.Options |= ibmmq.MQGMO_WAIT
+		gmo.WaitInterval = 3 * 1000 // The WaitInterval is in milliseconds
+
+		buffer := make([]byte, 0, 65536) // 64 KB
+		buffer, _, err = qObject.GetSlice(getmqmd, gmo, buffer)
+
+		if err != nil {
+			msgAvail = false
+			mqret := err.(*ibmmq.MQReturn)
+			if mqret.MQRC == ibmmq.MQRC_NO_MSG_AVAILABLE {
+				err = nil
+			} else {
+				log.Fatal("Error getting message:" + err.Error())
+			}
+		} else {
+			msg := strings.TrimSpace(string(buffer))
+
+			// validate the message
+			if valid := xml.ValidateByXpath(&msg, filterXPath, filterValue, xPath, value); valid {
+				validMessages++
+			} else {
+				failedMessages++
+			}
+		}
+	}
+
+	return QueueStatus{failedMessages, validMessages}
+}
+
+func (s *Ibmmq) CountAndRemoveFromQueue(qName string) int {
+	counter := 0
+	qMgr := s.Connect()
+	defer qMgr.Disc()
+
+	mqod := ibmmq.NewMQOD()
+	openOptions := ibmmq.MQOO_INPUT_EXCLUSIVE
+
+	mqod.ObjectType = ibmmq.MQOT_Q
+	mqod.ObjectName = qName
+
+	qObject, err := qMgr.Open(mqod, openOptions)
+	if err != nil {
+		log.Fatal("Error in opening queue: " + err.Error())
+	} else {
+		defer qObject.Close(0)
+	}
+
+	//messages := make([]string, 0)
+	msgAvail := true
+	for msgAvail && err == nil {
+		getmqmd := ibmmq.NewMQMD()
+		gmo := ibmmq.NewMQGMO()
+
+		gmo.Options = ibmmq.MQGMO_NO_SYNCPOINT
+
+		// Set options to wait for a maximum of 3 seconds for any new message to arrive
+		gmo.Options |= ibmmq.MQGMO_WAIT
+		gmo.WaitInterval = 3 * 1000 // The WaitInterval is in milliseconds
+
+		buffer := make([]byte, 0, 65536) // 64 KB
+		_, _, err = qObject.GetSlice(getmqmd, gmo, buffer)
+
+		if err != nil {
+			msgAvail = false
+			mqret := err.(*ibmmq.MQReturn)
+			if mqret.MQRC == ibmmq.MQRC_NO_MSG_AVAILABLE {
+				err = nil
+			} else {
+				log.Fatal("Error getting message:" + err.Error())
+			}
+		} else {
+			counter++
+		}
+	}
+
+	return counter
 }
 
 /*
