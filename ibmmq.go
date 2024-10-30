@@ -167,14 +167,6 @@ func (s *Ibmmq) Send(sourceQueue string, replyQueue string, sourceMessage string
 	var putMsgHandle ibmmq.MQMessageHandle
 	var err error
 
-	// Check if the inbound queue is open
-	s.inQ.mu.Lock()
-	if s.inQ.qObject == nil {
-		fmt.Println("Opening inbound queue")
-		s.OpenInboundQueue(sourceQueue)
-	}
-	s.inQ.mu.Unlock()
-
 	// Set new structures
 	putmqmd := ibmmq.NewMQMD()
 	pmo := ibmmq.NewMQPMO()
@@ -215,6 +207,12 @@ func (s *Ibmmq) Send(sourceQueue string, replyQueue string, sourceMessage string
 
 	// Put the message
 	s.inQ.mu.Lock()
+	// Check if the inbound queue is open
+	if s.inQ.qObject == nil {
+		fmt.Println("Opening inbound queue")
+		s.OpenInboundQueue(sourceQueue)
+	}
+
 	err = s.inQ.qObject.Put(putmqmd, pmo, buffer)
 	s.inQ.mu.Unlock()
 
