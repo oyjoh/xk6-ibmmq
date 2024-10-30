@@ -2,9 +2,12 @@ package xk6ibmmq
 
 import (
 	"encoding/hex"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
+
+	"sync"
 
 	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 	xml "github.com/oyjoh/xk6-ibmmq/internal"
@@ -19,11 +22,18 @@ func init() {
 type Ibmmq struct {
 	QMName string
 	cno    *ibmmq.MQCNO
+	qMgr   ibmmq.MQQueueManager
+	inQ    InboundQueue
 }
 
 type QueueStatus struct {
 	FailedMessages int
 	ValidMessages  int
+}
+
+type InboundQueue struct {
+	mu      sync.Mutex
+	qObject *ibmmq.MQObject
 }
 
 /*
@@ -90,7 +100,40 @@ func (s *Ibmmq) NewClient() int {
 		rc = int(err.(*ibmmq.MQReturn).MQCC)
 		log.Fatal("Error in making the initial connection: " + strconv.Itoa(rc) + err.Error())
 	}
+
+	// Connect to Queue Manager
+	s.qMgr = s.Connect()
+
+	// Set the inbound queue to nil
+	s.inQ.qObject = nil
+
 	return rc
+}
+
+func (s *Ibmmq) Close() {
+	fmt.Println("Closing connection")
+	s.qMgr.Disc()
+
+	if s.inQ.qObject != nil {
+		s.inQ.mu.Lock()
+		s.inQ.qObject.Close(0)
+		s.inQ.mu.Unlock()
+	}
+}
+
+func (s *Ibmmq) OpenInboundQueue(qName string) {
+	// Set queue open options
+	mqod := ibmmq.NewMQOD()
+	openOptions := ibmmq.MQOO_OUTPUT
+	mqod.ObjectType = ibmmq.MQOT_Q
+	mqod.ObjectName = qName
+
+	qObject, err := s.qMgr.Open(mqod, openOptions)
+	if err != nil {
+		log.Fatal("Error in opening queue: " + err.Error())
+	} else {
+		s.inQ.qObject = &qObject
+	}
 }
 
 /*
@@ -122,24 +165,15 @@ func (s *Ibmmq) Send(sourceQueue string, replyQueue string, sourceMessage string
 	var msgId string
 	var qMgr ibmmq.MQQueueManager
 	var putMsgHandle ibmmq.MQMessageHandle
+	var err error
 
-	// Set queue open options
-	mqod := ibmmq.NewMQOD()
-	openOptions := ibmmq.MQOO_OUTPUT
-	mqod.ObjectType = ibmmq.MQOT_Q
-	mqod.ObjectName = sourceQueue
-
-	// Connect to Queue Manager
-	qMgr = s.Connect()
-	defer qMgr.Disc()
-
-	// Open queue
-	qObject, err := qMgr.Open(mqod, openOptions)
-	if err != nil {
-		log.Fatal("Error in opening queue: " + err.Error())
-	} else {
-		defer qObject.Close(0)
+	// Check if the inbound queue is open
+	s.inQ.mu.Lock()
+	if s.inQ.qObject == nil {
+		fmt.Println("Opening inbound queue")
+		s.OpenInboundQueue(sourceQueue)
 	}
+	s.inQ.mu.Unlock()
 
 	// Set new structures
 	putmqmd := ibmmq.NewMQMD()
@@ -180,7 +214,9 @@ func (s *Ibmmq) Send(sourceQueue string, replyQueue string, sourceMessage string
 	}
 
 	// Put the message
-	err = qObject.Put(putmqmd, pmo, buffer)
+	s.inQ.mu.Lock()
+	err = s.inQ.qObject.Put(putmqmd, pmo, buffer)
+	s.inQ.mu.Unlock()
 
 	// Handle errors
 	if err != nil {
