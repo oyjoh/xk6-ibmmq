@@ -24,8 +24,8 @@ WORKDIR /workspace
 COPY . .
 
 # Build the k6 binary with the xk6-ibmmq extension
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go install go.k6.io/xk6/cmd/xk6@latest
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 xk6 build --with github.com/oyjoh/xk6-ibmmq
+RUN CGO_ENABLED=1 go install go.k6.io/xk6/cmd/xk6@latest
+RUN CGO_ENABLED=1 xk6 build --with github.com/oyjoh/xk6-ibmmq
 
 
 # Set the entrypoint to k6
