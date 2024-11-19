@@ -1,4 +1,4 @@
-FROM golang:1.23.2
+FROM golang:1.23.2 as builder
 
 # Install necessary packages
 RUN apt-get update && apt-get install -y \
@@ -25,11 +25,8 @@ COPY . .
 
 # Build the k6 binary with the xk6-ibmmq extension
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go install go.k6.io/xk6/cmd/xk6@latest
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 xk6 build --with github.com/oyjoh/xk6-ibmmq
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 xk6 build --with github.com/oyjoh/xk6-ibmmq --output /k6
 
-
-# Set the entrypoint to k6
-ENTRYPOINT ["/workspace/k6"]
-
-# Default command, can be overridden in docker-compose
-CMD ["run"]
+FROM grafana/k6:latest
+COPY --from=builder /opt/mqm/lib64 /opt/mqm/lib64
+COPY --from=builder /k6 /usr/bin/k6
